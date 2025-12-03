@@ -98,7 +98,7 @@ export default function ComparisonChart({ title, outcomes }: ComparisonChartProp
           padding: 15,
           font: {
             size: 12,
-            weight: '500' as const,
+            weight: 500,
           },
         },
       },

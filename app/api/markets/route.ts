@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const limit = parseInt(searchParams.get('limit') || '20');
@@ -12,6 +15,8 @@ export async function GET(request: Request) {
         headers: {
           'Content-Type': 'application/json',
         },
+        cache: 'no-store',
+        next: { revalidate: 0 },
       }
     );
 
@@ -20,6 +25,9 @@ export async function GET(request: Request) {
     if (!Array.isArray(data)) {
       return NextResponse.json(data);
     }
+
+    // 当前时间
+    const now = new Date();
 
     // 过滤和排序市场
     const validMarkets = data
@@ -36,11 +44,16 @@ export async function GET(request: Request) {
           return false;
         }
 
+        // 检查市场是否已过期
+        const endDate = market.endDate ? new Date(market.endDate) : null;
+        const isExpired = endDate ? endDate < now : false;
+
         // 只保留有 clobTokenIds 的市场（有价格数据）
+        // 并且市场必须是活跃的、未关闭的、未过期的
         return tokens.length > 0 &&
                market.active === true &&
-               // 过滤掉2025年之前的市场
-               new Date(market.endDate) > new Date('2025-01-01');
+               market.closed !== true &&
+               !isExpired;
       })
       .map((market: any) => {
         // 确保 clobTokenIds 是数组格式
@@ -64,7 +77,13 @@ export async function GET(request: Request) {
       })
       .slice(0, limit);
 
-    return NextResponse.json(validMarkets);
+    return NextResponse.json(validMarkets, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
   } catch (error) {
     console.error('Error fetching markets:', error);
     return NextResponse.json(
